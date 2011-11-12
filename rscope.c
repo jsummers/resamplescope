@@ -70,6 +70,8 @@ struct infile_info {
 };
 
 struct context {
+	int rotated;
+
 	// Size of the input image.
 	int w, h;
 
@@ -278,6 +280,35 @@ static void gr_draw_logo(struct context *c)
 
 /////////////////////////////////////////////////
 
+// Wrappers for gd functions, which swap the x and y coordinates if -r was used.
+
+static void rs_gdImageSetPixel(struct context *c, gdImagePtr im, int x, int y, int color)
+{
+	if(c->rotated)
+		gdImageSetPixel(im,y,x,color);
+	else
+		gdImageSetPixel(im,x,y,color);
+}
+
+static int rs_gdImageGetPixel(struct context *c, gdImagePtr im, int x, int y)
+{
+	if(c->rotated)
+		return gdImageGetPixel(im,y,x);
+	return gdImageGetPixel(im,x,y);
+}
+
+static int rs_gdImageSX(struct context *c, gdImagePtr im)
+{
+	return c->rotated ? gdImageSY(im) : gdImageSX(im);
+}
+
+static int rs_gdImageSY(struct context *c, gdImagePtr im)
+{
+	return c->rotated ? gdImageSX(im) : gdImageSY(im);
+}
+
+/////////////////////////////////////////////////
+
 // Opens and reads the image, if that hasn't already been done.
 static int open_file_for_reading(struct context *c, const char *fn)
 {
@@ -358,7 +389,7 @@ static int plot_strip(struct context *c, struct infile_info *inf, int stripnum)
 		// undo that.
 		tot = 0;
 		for(k=0;k<DOTIMG_STRIPHEIGHT;k++) {
-			colorref = gdImageGetPixel(c->im_in,dstpos,DOTIMG_STRIPHEIGHT*stripnum+k);
+			colorref = rs_gdImageGetPixel(c,c->im_in,dstpos,DOTIMG_STRIPHEIGHT*stripnum+k);
 			v = gdImageGreen(c->im_in,colorref);
 			// A pixel value of 50 is 0.0; 250 is 1.0.
 			tot += (v-50);
@@ -415,8 +446,8 @@ static int run_dotimg_1file(struct context *c, struct infile_info *inf)
 
 	if(!open_file_for_reading(c,inf->fn)) goto done;
 
-	c->w = gdImageSX(c->im_in);
-	c->h = gdImageSY(c->im_in);
+	c->w = rs_gdImageSX(c,c->im_in);
+	c->h = rs_gdImageSY(c,c->im_in);
 	if(c->h != DOTIMG_SRC_HEIGHT) {
 		fprintf(stderr,"* Error: Image is wrong height (is %d, should be %d)\n",c->h,DOTIMG_SRC_HEIGHT);
 		goto done;
@@ -508,8 +539,8 @@ static int run_lineimg_1file(struct context *c, struct infile_info *inf)
 		goto done;
 	}
 
-	c->w = gdImageSX(c->im_in);
-	c->h = gdImageSY(c->im_in);
+	c->w = rs_gdImageSX(c,c->im_in);
+	c->h = rs_gdImageSY(c,c->im_in);
 
 	if(c->h < 3) {
 		fprintf(stderr,"Image height (%d) too small\n",c->h);
@@ -527,7 +558,7 @@ static int run_lineimg_1file(struct context *c, struct infile_info *inf)
 	for(i=0;i<c->w;i++) {
 		// Read from three different scanlines, to give us a chance of
 		// detecting weird issues where the scanlines aren't identical.
-		colorref = gdImageGetPixel(c->im_in,i, scanline+(i%3)-1);
+		colorref = rs_gdImageGetPixel(c,c->im_in,i, scanline+(i%3)-1);
 		c->samples[i] = (int)gdImageGreen(c->im_in,colorref);
 	}
 
@@ -569,7 +600,7 @@ static int run_us(struct context *c)
 
 /////////////// FILE GENERATION ///////////////
 
-static int gen_dotimg_image(void)
+static int gen_dotimg_image(struct context *c)
 {
 	int i,j;
 	gdImagePtr im = NULL;
@@ -577,14 +608,20 @@ static int gen_dotimg_image(void)
 	int clr_gray, clr_white;
 	int clr;
 	int retval=0;
+	const char *fn;
 
-	w=fopen("pd.png","wb");
+	fn = c->rotated ? "pdr.png" : "pd.png";
+
+	w=fopen(fn,"wb");
 	if(!w) {
-		fprintf(stderr,"Can't write pd.png\n");
+		fprintf(stderr,"Can't write %s\n",fn);
 		goto done;
 	}
 
-	im = gdImageCreateTrueColor(DOTIMG_SRC_WIDTH,DOTIMG_SRC_HEIGHT);
+	if(c->rotated)
+		im = gdImageCreateTrueColor(DOTIMG_SRC_HEIGHT,DOTIMG_SRC_WIDTH);
+	else
+		im = gdImageCreateTrueColor(DOTIMG_SRC_WIDTH,DOTIMG_SRC_HEIGHT);
 
 	clr_gray = gdImageColorResolve(im,50,50,50);
 	clr_white = gdImageColorResolve(im,250,250,250);
@@ -597,14 +634,21 @@ static int gen_dotimg_image(void)
 					clr = clr_white;
 				}
 			}
-			gdImageSetPixel(im,i,j,clr);
+			rs_gdImageSetPixel(c,im,i,j,clr);
 		}
 	}
 
 	gdImagePng(im,w);
-	fprintf(stderr,"Wrote pd.png (%dx%d - resize to %dx%d)\n",
-	  DOTIMG_SRC_WIDTH,DOTIMG_SRC_HEIGHT,
-	  DOTIMG_DST_WIDTH,DOTIMG_DST_HEIGHT);
+	if(c->rotated) {
+		fprintf(stderr,"Wrote %s (%dx%d - resize to %dx%d)\n",fn,
+		  DOTIMG_SRC_HEIGHT,DOTIMG_SRC_WIDTH,
+		  DOTIMG_DST_HEIGHT,DOTIMG_DST_WIDTH);
+	}
+	else {
+		fprintf(stderr,"Wrote %s (%dx%d - resize to %dx%d)\n",fn,
+		  DOTIMG_SRC_WIDTH,DOTIMG_SRC_HEIGHT,
+		  DOTIMG_DST_WIDTH,DOTIMG_DST_HEIGHT);
+	}
 
 	retval=1;
 done:
@@ -613,7 +657,7 @@ done:
 	return retval;
 }
 
-static int gen_lineimg_image(void)
+static int gen_lineimg_image(struct context *c)
 {
 	int i,j;
 	gdImagePtr im = NULL;
@@ -622,14 +666,20 @@ static int gen_lineimg_image(void)
 	int clr;
 	int retval=0;
 	int middle;
+	const char *fn;
 
-	w=fopen("pl.png","wb");
+	fn = c->rotated ? "plr.png" : "pl.png";
+
+	w=fopen(fn,"wb");
 	if(!w) {
-		fprintf(stderr,"Can't write pl.png\n");
+		fprintf(stderr,"Can't write %s\n",fn);
 		goto done;
 	}
 
-	im = gdImageCreateTrueColor(LINEIMG_SRC_WIDTH,LINEIMG_SRC_HEIGHT);
+	if(c->rotated)
+		im = gdImageCreateTrueColor(LINEIMG_SRC_HEIGHT,LINEIMG_SRC_WIDTH);
+	else
+		im = gdImageCreateTrueColor(LINEIMG_SRC_WIDTH,LINEIMG_SRC_HEIGHT);
 
 	clr_black = gdImageColorResolve(im,50,50,50);
 	clr_white = gdImageColorResolve(im,250,250,250);
@@ -640,14 +690,22 @@ static int gen_lineimg_image(void)
 		for(i=0;i<LINEIMG_SRC_WIDTH;i++) {
 			if(i==middle) clr = clr_white;
 			else clr = clr_black;
-			gdImageSetPixel(im,i,j,clr);
+			rs_gdImageSetPixel(c,im,i,j,clr);
 		}
 	}
 
 	gdImagePng(im,w);
-	fprintf(stderr,"Wrote pl.png (%dx%d - resize to %dx%d)\n",
-	  LINEIMG_SRC_WIDTH,LINEIMG_SRC_HEIGHT,
-	  LINEIMG_DST_WIDTH,LINEIMG_DST_HEIGHT);
+
+	if(c->rotated) {
+		fprintf(stderr,"Wrote %s (%dx%d - resize to %dx%d)\n",fn,
+		  LINEIMG_SRC_HEIGHT,LINEIMG_SRC_WIDTH,
+		  LINEIMG_DST_HEIGHT,LINEIMG_DST_WIDTH);
+	}
+	else {
+		fprintf(stderr,"Wrote %s (%dx%d - resize to %dx%d)\n",fn,
+		  LINEIMG_SRC_WIDTH,LINEIMG_SRC_HEIGHT,
+		  LINEIMG_DST_WIDTH,LINEIMG_DST_HEIGHT);
+	}
 
 	retval=1;
 done:
@@ -656,10 +714,14 @@ done:
 	return retval;
 }
 
-static void gen_html(void)
+static void gen_html(struct context *c)
 {
 	FILE *w = NULL;
-	w=fopen("rscope.html","w");
+	char *fn;
+
+	fn = c->rotated ? "rscoper.html" : "rscope.html";
+
+	w=fopen(fn,"w");
 	if(!w) return;
 
 	fprintf(w,"<html>\n");
@@ -668,26 +730,46 @@ static void gen_html(void)
 	fprintf(w,"<style>\n");
 	fprintf(w,"IMG { -ms-interpolation-mode:bicubic }\n");
 	fprintf(w,"TD.t { text-align:right }\n");
+	fprintf(w,"TD.c { text-align:center }\n");
 	fprintf(w,"</style>\n");
 	fprintf(w,"</head>\n");
 	fprintf(w,"<body bgcolor=\"#bbbbcc\">\n");
 	fprintf(w,"<table>\n");
-	fprintf(w,"<tr><td class=t>Upscale:</td><td colspan=2><img src=pl.png width=%d height=%d></td></tr>\n",LINEIMG_DST_WIDTH,LINEIMG_DST_HEIGHT);
-	fprintf(w,"<tr><td class=t>Downscale:</td><td colspan=2><img src=pd.png width=%d height=%d></td></tr>\n",DOTIMG_DST_WIDTH,DOTIMG_DST_HEIGHT);
-	fprintf(w,"<tr><td class=t>Downscale350,200:</td><td><img src=pd.png width=%d height=%d></td>\n",350,DOTIMG_DST_HEIGHT);
-	fprintf(w,"<td><img src=pd.png width=%d height=%d></td></tr>\n",200,DOTIMG_DST_HEIGHT);
+
+	if(c->rotated) {
+		fprintf(w,"<tr><td colspan=2></td><td class=c>Downscale:</td><td class=c>Downscale350,200:</td></tr>\n");
+		fprintf(w,"<tr><td class=t rowspan=2>Upscale:</td><td rowspan=2><img src=plr.png width=%d height=%d></td>\n",
+		  LINEIMG_DST_HEIGHT,LINEIMG_DST_WIDTH);
+		fprintf(w,"<td rowspan=2><img src=pdr.png width=%d height=%d></td>\n",
+		  DOTIMG_DST_HEIGHT,DOTIMG_DST_WIDTH);
+		fprintf(w,"<td><img src=pdr.png width=%d height=%d></td></tr>\n",
+		  DOTIMG_DST_HEIGHT,350);
+		fprintf(w,"<tr><td><img src=pdr.png width=%d height=%d></td></tr>\n",
+		  DOTIMG_DST_HEIGHT,200);
+	}
+	else {
+		fprintf(w,"<tr><td class=t>Upscale:</td><td colspan=2><img src=pl.png width=%d height=%d></td></tr>\n",
+		  LINEIMG_DST_WIDTH,LINEIMG_DST_HEIGHT);
+		fprintf(w,"<tr><td class=t>Downscale:</td><td colspan=2><img src=pd.png width=%d height=%d></td></tr>\n",
+		  DOTIMG_DST_WIDTH,DOTIMG_DST_HEIGHT);
+		fprintf(w,"<tr><td class=t>Downscale350,200:</td><td><img src=pd.png width=%d height=%d></td>\n",
+		  350,DOTIMG_DST_HEIGHT);
+		fprintf(w,"<td><img src=pd.png width=%d height=%d></td></tr>\n",
+		  200,DOTIMG_DST_HEIGHT);
+	}
+
 	fprintf(w,"</table>\n");
 	fprintf(w,"</body>\n</html>\n");
 
 	fclose(w);
-	fprintf(stderr,"Wrote rscope.html\n");
+	fprintf(stderr,"Wrote %s\n",fn);
 }
 
-static void gen_source_images(void)
+static void gen_source_images(struct context *c)
 {
-	gen_lineimg_image();
-	gen_dotimg_image();
-	gen_html();
+	gen_lineimg_image(c);
+	gen_dotimg_image(c);
+	gen_html(c);
 }
 
 ///////////////////////////////////////////////
@@ -703,12 +785,12 @@ static int detect_image_type(struct context *c, const char *fn)
 	if(!open_file_for_reading(c,fn)) return 0;
 	//fprintf(stderr,"Autodetecting %s\n",fn);
 
-	w = gdImageSX(c->im_in);
+	w = rs_gdImageSX(c,c->im_in);
 
 	// Look at the top row. If it contains any bright pixels, assume OP_LINEIMG.
 	// Otherwise, assume OP_DOTIMG
 	for(i=0;i<w;i++) {
-		colorref = gdImageGetPixel(c->im_in,i,0);
+		colorref = rs_gdImageGetPixel(c,c->im_in,i,0);
 		if(gdImageGreen(c->im_in,colorref)>=100) return OP_LINEIMG;
 	}
 
@@ -730,6 +812,7 @@ static void usage(const char *prg)
 	fprintf(f,"  -pl             - Assume the \"lines pattern\" source image was used\n");
 	fprintf(f,"  -sf <factor>    - Assume image-file.png's features were scaled by this factor\n");
 	fprintf(f,"  -ff <factor>    - Multiply image-file.png's assumed scale factor by this factor\n");
+	fprintf(f,"  -r              - Swap the x and y dimensions, to test the vertical direction\n");
 	fprintf(f,"  -nologo         - Don't include the program name in output-file.png\n");
 	fprintf(f,"  -name <name>    - Friendly name for image-file.png\n");
 	fprintf(f,"  -name2 <name>   - Friendly name for secondary-image-file.png\n");
@@ -769,6 +852,9 @@ int main(int argc, char**argv)
 			}
 			else if(!strcmp(argv[i],"-pl")) {
 				op = OP_LINEIMG;
+			}
+			else if(!strcmp(argv[i],"-r")) {
+				c.rotated = 1;
 			}
 			else if((i<argc-1) && !strcmp(argv[i],"-name")) {
 				c.inf[0].name = argv[i+1];
@@ -832,7 +918,7 @@ int main(int argc, char**argv)
 	}
 
 	if(op==OP_GEN) {
-		gen_source_images();
+		gen_source_images(&c);
 		return 0;
 	}
 	else if(op==OP_DOTIMG) {

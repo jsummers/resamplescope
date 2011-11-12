@@ -48,6 +48,8 @@ Then, run "rscope <resized-image.png> <output-image.png>" on the resized
 images. It will write an image file containing a picture of the resampling
 filter used.
 
+For a list of options, run rscope with no parameters.
+
 
 Notes
 -----
@@ -64,10 +66,10 @@ ResampleScope only works with "nonadaptive" algorithms. If, for example, an
 application runs a sharpening filter on the image after scaling it,
 ResampleScope won't produce meaningful results.
 
-ResampleScope only analyzes the algorithm that was used to scale the image in
-the horizontal direction. The algorithm used for the vertical dimension will,
-at best, be irrelevant. (Of course, you could rotate the image before giving
-it to ResampleScope, if you want to look at the vertical dimension instead.)
+By default, ResampleScope analyzes the algorithm that was used to scale the
+image in the horizontal direction. To analyze the vertical dimension instead,
+generate new pattern files by running "rscope -r -gen", and include the -r
+option when you analyze the images.
 
 Downscaling is harder to analyze than upscaling. ResampleScope works best if
 you reduce the size as little as possible (but by at least 2 pixels). But
