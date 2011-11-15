@@ -516,7 +516,15 @@ static void gr_lineimg_graph_main(struct context *c, struct infile_info *inf)
 		v = c->samples[i];
 		yp = (((double)v)-50.0)/200.0;
 		tot += yp;
-		xp = (0.5+(double)(i-(((double)c->w)/2.0)))/c->scale_factor;
+		xp = 0.5+(double)i-(((double)c->w)/2.0);
+
+		if(c->scale_factor < 1.0) {
+			yp /= c->scale_factor;
+		}
+		else {
+			xp /= c->scale_factor;
+		}
+
 		gr_lineto(c,xp,yp,clr);
 	}
 
