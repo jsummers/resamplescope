@@ -56,9 +56,8 @@
 #define LINEIMG_DST_HEIGHT  LINEIMG_SRC_HEIGHT
 
 
-#define OP_GEN 1
-#define OP_LINEIMG 2
-#define OP_DOTIMG 3
+#define PATTERN_LINEIMG 1
+#define PATTERN_DOTIMG 2
 
 struct infile_info {
 	const char *fn;
@@ -781,8 +780,8 @@ static void gen_source_images(struct context *c)
 
 ///////////////////////////////////////////////
 
-// Returns OP_LINEIMG or OP_DOTIMG.
-// On error, returns 0.
+// Returns PATTERN_*.
+// On error, prints an error message and returns 0.
 static int detect_image_type(struct context *c, const char *fn)
 {
 	int w;
@@ -794,14 +793,14 @@ static int detect_image_type(struct context *c, const char *fn)
 
 	w = rs_gdImageSX(c,c->im_in);
 
-	// Look at the top row. If it contains any bright pixels, assume OP_LINEIMG.
-	// Otherwise, assume OP_DOTIMG
+	// Look at the top row. If it contains any bright pixels, assume PATTERN_LINEIMG.
+	// Otherwise, assume PATTERN_DOTIMG
 	for(i=0;i<w;i++) {
 		colorref = rs_gdImageGetPixel(c,c->im_in,i,0);
-		if(gdImageGreen(c->im_in,colorref)>=100) return OP_LINEIMG;
+		if(gdImageGreen(c->im_in,colorref)>=100) return PATTERN_LINEIMG;
 	}
 
-	return OP_DOTIMG;
+	return PATTERN_DOTIMG;
 }
 
 ///////////////////////////////////////////////
@@ -840,7 +839,10 @@ int main(int argc, char**argv)
 	int i;
 	int paramcount;
 	const char *prg;
+#define OP_GEN      1
+#define OP_ANALYZE  2
 	int op = 0;
+	int pattern = 0;
 
 	prg = (argc>=1)?argv[0]:"rscope";
 
@@ -855,10 +857,12 @@ int main(int argc, char**argv)
 				op = OP_GEN;
 			}
 			else if(!strcmp(argv[i],"-pd")) {
-				op = OP_DOTIMG;
+				op = OP_ANALYZE;
+				pattern = PATTERN_DOTIMG;
 			}
 			else if(!strcmp(argv[i],"-pl")) {
-				op = OP_LINEIMG;
+				op = OP_ANALYZE;
+				pattern = PATTERN_LINEIMG;
 			}
 			else if(!strcmp(argv[i],"-r")) {
 				c.rotated = 1;
@@ -910,16 +914,11 @@ int main(int argc, char**argv)
 	// it, instead of opening a new file. So we have to be sure we leave the
 	// correct file open. (Yes, this is ugly.)
 	if(op==0 && (paramcount==2 || paramcount==3)) {
-		if(paramcount==2) {
-			op = detect_image_type(&c,param1);
-		}
-		else if(paramcount==3) {
-			op = detect_image_type(&c,param2);
-		}
+		op = OP_ANALYZE;
+		pattern = detect_image_type(&c,(paramcount==2)?param1:param2);
 
-		if(op!=OP_DOTIMG && op!=OP_LINEIMG) {
+		if(pattern!=PATTERN_DOTIMG && pattern!=PATTERN_LINEIMG) {
 			close_file_for_reading(&c);
-			fprintf(stderr,"* Error: Detection of image type failed.\n");
 			exit(1);
 		}
 	}
@@ -928,7 +927,7 @@ int main(int argc, char**argv)
 		gen_source_images(&c);
 		return 0;
 	}
-	else if(op==OP_DOTIMG) {
+	else if(op==OP_ANALYZE && pattern==PATTERN_DOTIMG) {
 		if(paramcount==2) {
 			// DOTIMG, 1 input file
 			c.inf[0].fn = param1;
@@ -948,7 +947,7 @@ int main(int argc, char**argv)
 			exit(1);
 		}
 	}
-	else if(op==OP_LINEIMG) {
+	else if(op==OP_ANALYZE && pattern==PATTERN_LINEIMG) {
 		if(paramcount==2) {
 			// LINEIMG, 1 input file
 			c.inf[0].fn = param1;
