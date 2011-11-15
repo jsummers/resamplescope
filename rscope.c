@@ -509,7 +509,6 @@ static void gr_lineimg_graph_main(struct context *c, struct infile_info *inf)
 	double xp, yp;
 	double tot = 0.0;
 	double area;
-	//double exp_factor; // expansion factor
 
 	clr = c->curr_color;
 
@@ -517,7 +516,7 @@ static void gr_lineimg_graph_main(struct context *c, struct infile_info *inf)
 		v = c->samples[i];
 		yp = (((double)v)-50.0)/200.0;
 		tot += yp;
-		xp = ((double)(i-(c->w/2)))/c->scale_factor;
+		xp = (0.5+(double)(i-(((double)c->w)/2.0)))/c->scale_factor;
 		gr_lineto(c,xp,yp,clr);
 	}
 
