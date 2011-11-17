@@ -22,6 +22,9 @@
 #include <gd.h>
 #include <gdfonts.h>
 
+#ifdef _WIN32
+#define snprintf _snprintf
+#endif
 
 // Ideally, DOTIMG_SRC_WIDTH should be a prime number, 2 larger than an easily-typed number.
 #define DOTIMG_SRC_WIDTH    557
@@ -225,6 +228,10 @@ static void gr_get_name_from_fn(const char *fn, char *buf, size_t buflen)
 {
 	char *r;
 	r = strrchr(fn,'/');
+#ifdef _WIN32
+	if(!r) r = strrchr(fn,'\\');
+#endif
+
 	if(r)
 		strncpy(buf,r+1,buflen-1);
 	else
@@ -246,7 +253,7 @@ static void gr_draw_graph_name(struct context *c, struct infile_info *inf, int s
 
 	if(inf->name) {
 		strncpy(buf,inf->name,100);
-		buf[100-1]='\0';
+		buf[sizeof(buf)-1]='\0';
 	}
 	else {
 		gr_get_name_from_fn(inf->fn,buf,100);
@@ -262,6 +269,7 @@ static void gr_draw_graph_name(struct context *c, struct infile_info *inf, int s
 		}
 	}
 
+	s[sizeof(s)-1]='\0';
 	gdImageString(c->im_out,gdFontSmall,17,ypos,(unsigned char*)s,c->curr_color);
 }
 
