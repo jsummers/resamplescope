@@ -71,6 +71,7 @@ struct infile_info {
 	int scale_factor_req_set;
 	double scale_fudge_factor_req; // Multiply the default scale factor by this fudge factor.
 	int scale_fudge_factor_req_set;
+	int thicklines;
 };
 
 struct context {
@@ -260,7 +261,9 @@ static void gr_draw_graph_name(struct context *c, struct infile_info *inf, int s
 	else {
 		gr_get_name_from_fn(inf->fn,buf,100);
 	}
+	if(inf->thicklines) gdImageSetThickness(c->im_out,3);
 	gdImageLine(c->im_out,5,ypos+7,13,ypos+7,c->curr_color);
+	gdImageSetThickness(c->im_out,1);
 
 	snprintf(s,sizeof(s),"%s",buf);
 	if(sf_flag) {
@@ -423,6 +426,12 @@ static int plot_strip(struct context *c, struct infile_info *inf, int stripnum)
 		yc = ycoord(c,value);
 		if(point_is_visible(c,xc,yc)) {
 			gdImageSetPixel(c->im_out,xc,yc,c->curr_color);
+			if(inf->thicklines) {
+				gdImageSetPixel(c->im_out,xc-1,yc,c->curr_color);
+				gdImageSetPixel(c->im_out,xc+1,yc,c->curr_color);
+				gdImageSetPixel(c->im_out,xc,yc-1,c->curr_color);
+				gdImageSetPixel(c->im_out,xc,yc+1,c->curr_color);
+			}
 		}
 
 	}
@@ -521,6 +530,9 @@ static void gr_lineimg_graph_main(struct context *c, struct infile_info *inf)
 
 	clr = c->curr_color;
 
+	if(inf->thicklines)
+		gdImageSetThickness(c->im_out,3);
+
 	for(i=0;i<c->w;i++) {
 		v = c->samples[i];
 		yp = (((double)v)-50.0)/200.0;
@@ -536,6 +548,8 @@ static void gr_lineimg_graph_main(struct context *c, struct infile_info *inf)
 
 		gr_lineto(c,xp,yp,clr);
 	}
+
+	gdImageSetThickness(c->im_out,1);
 
 	area = tot/c->scale_factor;
 	fprintf(stderr,"  Area = %.6f",area);
@@ -831,6 +845,7 @@ static void usage(const char *prg)
 	fprintf(f,"  -sf <factor>    - Assume image-file.png's features were scaled by this factor\n");
 	fprintf(f,"  -ff <factor>    - Multiply image-file.png's assumed scale factor by this factor\n");
 	fprintf(f,"  -r              - Swap the x and y dimensions, to test the vertical direction\n");
+	fprintf(f,"  -thick          - Graph secondary-image-file.png using thicker lines\n");
 	fprintf(f,"  -nologo         - Don't include the program name in output-file.png\n");
 	fprintf(f,"  -name <name>    - Friendly name for image-file.png\n");
 	fprintf(f,"  -name2 <name>   - Friendly name for secondary-image-file.png\n");
@@ -899,6 +914,9 @@ int main(int argc, char**argv)
 			}
 			else if(!strcmp(argv[i],"-nologo")) {
 				c.include_logo=0;
+			}
+			else if(!strcmp(argv[i],"-thick")) {
+				c.inf[1].thicklines = 1;
 			}
 			else {
 				fprintf(stderr,"Unknown option: %s\n",argv[i]);
