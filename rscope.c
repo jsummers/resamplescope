@@ -111,6 +111,7 @@ struct context {
 	int graph_count;
 
 	int include_logo;
+	int expandrange;
 
 	// Temporary space for the samples being analyzed.
 	// (Currently only used when with lineimg.)
@@ -129,8 +130,14 @@ static void gr_init(struct context *c)
 	c->gr_unit_x = 90.0;
 
 	c->gr_height = 300;
-	c->gr_zero_y = 220.0;
-	c->gr_unit_y = -200.0;
+	if(c->expandrange) {
+		c->gr_zero_y = 260.0;
+		c->gr_unit_y = -90.0;
+	}
+	else {
+		c->gr_zero_y = 220.0;
+		c->gr_unit_y = -200.0;
+	}
 
 	c->im_out =  gdImageCreate(c->gr_width,c->gr_height);
 	gdImageFilledRectangle(c->im_out,0,0,c->gr_width-1,c->gr_height-1,
@@ -850,6 +857,7 @@ static void usage(const char *prg)
 	fprintf(f,"  -sf <factor>    - Assume image-file.png's features were scaled by this factor\n");
 	fprintf(f,"  -ff <factor>    - Multiply image-file.png's assumed scale factor by this factor\n");
 	fprintf(f,"  -r              - Swap the x and y dimensions, to test the vertical direction\n");
+	fprintf(f,"  -range          - Shrink the graph, to increase the visible vertical range\n");
 	fprintf(f,"  -thick          - Graph secondary-image-file.png using thicker lines\n");
 	fprintf(f,"  -nologo         - Don't include the program name in output-file.png\n");
 	fprintf(f,"  -name <name>    - Friendly name for image-file.png\n");
@@ -926,6 +934,9 @@ int main(int argc, char**argv)
 			}
 			else if(!strcmp(argv[i],"-nologo")) {
 				c.include_logo=0;
+			}
+			else if(!strcmp(argv[i],"-range")) {
+				c.expandrange=1;
 			}
 			else if(!strcmp(argv[i],"-thick")) {
 				c.inf[1].thicklines = 1;
