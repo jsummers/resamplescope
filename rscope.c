@@ -72,6 +72,7 @@ struct infile_info {
 	double scale_fudge_factor_req; // Multiply the default scale factor by this fudge factor.
 	int scale_fudge_factor_req_set;
 	int thicklines;
+	int color_r, color_g, color_b;
 };
 
 struct context {
@@ -502,12 +503,14 @@ static int run_ds(struct context *c)
 	gr_draw_logo(c);
 
 	if(c->inf[1].fn) {
-		c->curr_color = gdImageColorResolve(c->im_out,224,64,64);
+		c->curr_color = gdImageColorResolve(c->im_out,
+		  c->inf[1].color_r,c->inf[1].color_g,c->inf[1].color_b);
 		ret = run_dotimg_1file(c,&c->inf[1]);
 		c->lastpos_set = 0;
 	}
 
-	c->curr_color = gdImageColorResolve(c->im_out,0,0,255);
+	c->curr_color = gdImageColorResolve(c->im_out,
+	  c->inf[0].color_r,c->inf[0].color_g,c->inf[0].color_b);
 	ret = run_dotimg_1file(c,&c->inf[0]);
 
 	gr_done(c);
@@ -613,12 +616,14 @@ static int run_us(struct context *c)
 	gr_draw_logo(c);
 
 	if(c->inf[1].fn) {
-		c->curr_color = gdImageColorResolve(c->im_out,224,64,64);
+		c->curr_color = gdImageColorResolve(c->im_out,
+		  c->inf[1].color_r,c->inf[1].color_g,c->inf[1].color_b);
 		ret = run_lineimg_1file(c,&c->inf[1]);
 		c->lastpos_set = 0;
 	}
 
-	c->curr_color = gdImageColorResolve(c->im_out,0,0,255);
+	c->curr_color = gdImageColorResolve(c->im_out,
+	  c->inf[0].color_r,c->inf[0].color_g,c->inf[0].color_b);
 	ret = run_lineimg_1file(c,&c->inf[0]);
 
 	gr_done(c);
@@ -855,6 +860,13 @@ static void init_ctx(struct context *c)
 {
 	memset(c,0,sizeof(struct context));
 	c->include_logo = 1;
+
+	c->inf[0].color_r = 0;
+	c->inf[0].color_g = 0;
+	c->inf[0].color_b = 255;
+	c->inf[1].color_r = 224;
+	c->inf[1].color_g = 64;
+	c->inf[1].color_b = 64;
 }
 
 int main(int argc, char**argv)
@@ -917,6 +929,8 @@ int main(int argc, char**argv)
 			}
 			else if(!strcmp(argv[i],"-thick")) {
 				c.inf[1].thicklines = 1;
+				// Use a lighter color for thick lines.
+				c.inf[1].color_r=255; c.inf[1].color_g=128; c.inf[1].color_b=128;
 			}
 			else {
 				fprintf(stderr,"Unknown option: %s\n",argv[i]);
