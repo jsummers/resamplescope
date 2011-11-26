@@ -130,9 +130,13 @@ static void gr_init(struct context *c)
 	c->gr_unit_x = 90.0;
 
 	c->gr_height = 300;
-	if(c->expandrange) {
+	if(c->expandrange==2) {
 		c->gr_zero_y = 260.0;
 		c->gr_unit_y = -90.0;
+	}
+	else if(c->expandrange==1) {
+		c->gr_zero_y = 240.0;
+		c->gr_unit_y = -150.0;
 	}
 	else {
 		c->gr_zero_y = 220.0;
@@ -857,7 +861,8 @@ static void usage(const char *prg)
 	fprintf(f,"  -sf <factor>    - Assume image-file.png's features were scaled by this factor\n");
 	fprintf(f,"  -ff <factor>    - Multiply image-file.png's assumed scale factor by this factor\n");
 	fprintf(f,"  -r              - Swap the x and y dimensions, to test the vertical direction\n");
-	fprintf(f,"  -range          - Shrink the graph, to increase the visible vertical range\n");
+	fprintf(f,"  -range[2]       - Shrink the graph, to increase the visible vertical range\n");
+	fprintf(f,"  -thick1         - Graph image-file.png using thicker lines\n");
 	fprintf(f,"  -thick          - Graph secondary-image-file.png using thicker lines\n");
 	fprintf(f,"  -nologo         - Don't include the program name in output-file.png\n");
 	fprintf(f,"  -name <name>    - Friendly name for image-file.png\n");
@@ -937,6 +942,12 @@ int main(int argc, char**argv)
 			}
 			else if(!strcmp(argv[i],"-range")) {
 				c.expandrange=1;
+			}
+			else if(!strcmp(argv[i],"-range2")) {
+				c.expandrange=2;
+			}
+			else if(!strcmp(argv[i],"-thick1")) {
+				c.inf[0].thicklines = 1;
 			}
 			else if(!strcmp(argv[i],"-thick")) {
 				c.inf[1].thicklines = 1;
