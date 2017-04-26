@@ -30,8 +30,11 @@ libgd (with PNG support) is required.
 
 Linux (etc.): Try running "make".
 
-Windows: Although it can probably be built as a Windows console application,
-no project files are included. I suggest using Cygwin.
+Windows: There are project files in the "proj" subdirectory that may help to
+compile ResampleScope as a Windows console application. However, this is
+primarily intended for maintainer use. You will have to build compatible
+copies of libgd, libpng, and zlib, and no help is provided for this. Another
+option is to use Cygwin.
 
 
 How to use
