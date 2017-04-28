@@ -57,9 +57,11 @@ For a list of options, run rscope with no parameters.
 Notes
 -----
 
-If the application does any gamma correction, you'll have to find a way to
+If the application does any gamma correction, you may have to find a way to
 turn off that feature. If you don't, the resulting graphs will be very
-obviously warped vertically.
+obviously warped vertically. Your other option is to try the -srgb option,
+which will work in some limited cases (though even then, some graphs will be
+clipped at the bottom).
 
 ResampleScope only works with simple 1-dimensional ("separable") scaling
 algorithms. All of the common algorithms (Lanczos, Mitchell, any kind of
