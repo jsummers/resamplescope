@@ -237,6 +237,14 @@ static FILE* my_fopen_win(const char *fn, const char *mode)
 
 #endif
 
+static void printmsg(struct context *c, const char *fmt, ...)
+{
+	va_list ap;
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+}
+
 static FILE *my_fopen(const char *file, const char *mode)
 {
 #ifdef RS_WINDOWS
@@ -252,7 +260,6 @@ static void my_gdImageString(gdImagePtr im, gdFontPtr f, int x, int y,
 	// TODO: Character set translation
 	gdImageString(im, f, x, y, s, color);
 }
-
 
 static void gr_init(struct context *c)
 {
@@ -513,7 +520,7 @@ static int open_file_for_reading(struct context *c, const char *fn)
 	if(!c->im_in_fp) {
 		c->im_in_fp = my_fopen(fn,"rb");
 		if(!c->im_in_fp) {
-			fprintf(stderr,"* Error: Failed to read %s\n",fn);
+			printmsg(c, "* Error: Failed to read %s\n",fn);
 			return 0;
 		}
 	}
@@ -521,7 +528,7 @@ static int open_file_for_reading(struct context *c, const char *fn)
 	if(!c->im_in) {
 		c->im_in = gdImageCreateFromPng(c->im_in_fp);
 		if(!c->im_in) {
-			fprintf(stderr,"gd creation failed\n");
+			printmsg(c, "gd creation failed\n");
 			return 0;
 		}
 	}
@@ -641,18 +648,18 @@ static int run_dotimg_1file(struct context *c, struct infile_info *inf)
 	int retval=0;
 	int i;
 
-	fprintf(stderr," Reading %s\n",inf->fn);
+	printmsg(c, " Reading %s\n",inf->fn);
 
 	if(!open_file_for_reading(c,inf->fn)) goto done;
 
 	c->w = rs_gdImageSX(c,c->im_in);
 	c->h = rs_gdImageSY(c,c->im_in);
 	if(c->h != DOTIMG_SRC_HEIGHT) {
-		fprintf(stderr,"* Error: Image is wrong height (is %d, should be %d)\n",c->h,DOTIMG_SRC_HEIGHT);
+		printmsg(c, "* Error: Image is wrong height (is %d, should be %d)\n",c->h,DOTIMG_SRC_HEIGHT);
 		goto done;
 	}
 	if(c->w<50) {
-		fprintf(stderr,"* Error: Image is wrong width (is %d, must be at least 50)\n",c->w);
+		printmsg(c, "* Error: Image is wrong width (is %d, must be at least 50)\n",c->w);
 		goto done;
 	}
 
@@ -675,7 +682,7 @@ static int run_ds(struct context *c)
 {
 	int ret;
 
-	fprintf(stderr,"Writing %s [dot pattern]\n",c->outfn);
+	printmsg(c, "Writing %s [dot pattern]\n",c->outfn);
 
 	gr_init(c);
 	c->border_color = gdImageColorResolve(c->im_out,144,192,144);
@@ -735,8 +742,8 @@ static void gr_lineimg_graph_main(struct context *c, struct infile_info *inf)
 	gdImageSetThickness(c->im_out,1);
 
 	area = tot/c->scale_factor;
-	fprintf(stderr,"  Area = %.6f",area);
-	fprintf(stderr,"\n");
+	printmsg(c, "  Area = %.6f",area);
+	printmsg(c, "\n");
 }
 
 static int run_lineimg_1file(struct context *c, struct infile_info *inf)
@@ -745,7 +752,7 @@ static int run_lineimg_1file(struct context *c, struct infile_info *inf)
 	int i;
 	int scanline; // The (middle) scanline we'll analyze
 
-	fprintf(stderr," Reading %s\n",inf->fn);
+	printmsg(c, " Reading %s\n",inf->fn);
 
 	if(!open_file_for_reading(c,inf->fn)) {
 		goto done;
@@ -755,7 +762,7 @@ static int run_lineimg_1file(struct context *c, struct infile_info *inf)
 	c->h = rs_gdImageSY(c,c->im_in);
 
 	if(c->h < 3) {
-		fprintf(stderr,"Image height (%d) too small\n",c->h);
+		printmsg(c, "Image height (%d) too small\n",c->h);
 		goto done;
 	}
 
@@ -786,7 +793,7 @@ static int run_us(struct context *c)
 {
 	int ret = 0;
 
-	fprintf(stderr,"Writing %s [line pattern]\n",c->outfn);
+	printmsg(c, "Writing %s [line pattern]\n",c->outfn);
 
 	gr_init(c);
 	c->border_color = gdImageColorResolve(c->im_out,204,136,204);
@@ -827,7 +834,7 @@ static int gen_dotimg_image(struct context *c)
 
 	w = my_fopen(fn,"wb");
 	if(!w) {
-		fprintf(stderr,"Can't write %s\n",fn);
+		printmsg(c, "Can't write %s\n",fn);
 		goto done;
 	}
 
@@ -853,12 +860,12 @@ static int gen_dotimg_image(struct context *c)
 
 	gdImagePng(im,w);
 	if(c->rotated) {
-		fprintf(stderr,"Wrote %s (%dx%d - resize to %dx%d)\n",fn,
+		printmsg(c, "Wrote %s (%dx%d - resize to %dx%d)\n",fn,
 		  DOTIMG_SRC_HEIGHT,DOTIMG_SRC_WIDTH,
 		  DOTIMG_DST_HEIGHT,DOTIMG_DST_WIDTH);
 	}
 	else {
-		fprintf(stderr,"Wrote %s (%dx%d - resize to %dx%d)\n",fn,
+		printmsg(c, "Wrote %s (%dx%d - resize to %dx%d)\n",fn,
 		  DOTIMG_SRC_WIDTH,DOTIMG_SRC_HEIGHT,
 		  DOTIMG_DST_WIDTH,DOTIMG_DST_HEIGHT);
 	}
@@ -885,7 +892,7 @@ static int gen_lineimg_image(struct context *c)
 
 	w = my_fopen(fn,"wb");
 	if(!w) {
-		fprintf(stderr,"Can't write %s\n",fn);
+		printmsg(c, "Can't write %s\n",fn);
 		goto done;
 	}
 
@@ -910,12 +917,12 @@ static int gen_lineimg_image(struct context *c)
 	gdImagePng(im,w);
 
 	if(c->rotated) {
-		fprintf(stderr,"Wrote %s (%dx%d - resize to %dx%d)\n",fn,
+		printmsg(c, "Wrote %s (%dx%d - resize to %dx%d)\n",fn,
 		  LINEIMG_SRC_HEIGHT,LINEIMG_SRC_WIDTH,
 		  LINEIMG_DST_HEIGHT,LINEIMG_DST_WIDTH);
 	}
 	else {
-		fprintf(stderr,"Wrote %s (%dx%d - resize to %dx%d)\n",fn,
+		printmsg(c, "Wrote %s (%dx%d - resize to %dx%d)\n",fn,
 		  LINEIMG_SRC_WIDTH,LINEIMG_SRC_HEIGHT,
 		  LINEIMG_DST_WIDTH,LINEIMG_DST_HEIGHT);
 	}
@@ -975,7 +982,7 @@ static void gen_html(struct context *c)
 	fprintf(w,"</body>\n</html>\n");
 
 	fclose(w);
-	fprintf(stderr,"Wrote %s\n",fn);
+	printmsg(c, "Wrote %s\n",fn);
 }
 
 static void gen_source_images(struct context *c)
@@ -995,7 +1002,7 @@ static int detect_image_type(struct context *c, const char *fn)
 	int i;
 
 	if(!open_file_for_reading(c,fn)) return 0;
-	//fprintf(stderr,"Autodetecting %s\n",fn);
+	//printmsg(c, "Autodetecting %s\n",fn);
 
 	w = rs_gdImageSX(c,c->im_in);
 
@@ -1010,34 +1017,37 @@ static int detect_image_type(struct context *c, const char *fn)
 
 ///////////////////////////////////////////////
 
-static void usage(const char *prg)
+static void usage(struct context *c, const char *prg)
 {
-	FILE *f = stderr;
-	fprintf(f,"ResampleScope v%s, ",RS_VERSION);
-	fprintf(f,"Copyright (C) 2011 Jason Summers\n");
-	fprintf(f,"Usage:\n");
-	fprintf(f,"  %s [-r] -gen\n",prg);
-	fprintf(f,"     Generate the source image files\n");
-	fprintf(f,"  %s [options] <image-file.png> [<secondary-image-file.png>] <output-file.png>\n",prg);
-	fprintf(f,"     Analyze a resized image file\n");
-	fprintf(f," Options:\n");
-	fprintf(f,"  -pd             - Assume the \"dots pattern\" source image was used\n");
-	fprintf(f,"  -pl             - Assume the \"lines pattern\" source image was used\n");
-	fprintf(f,"  -sf <factor>    - Assume image-file.png's features were scaled by this factor\n");
-	fprintf(f,"  -ff <factor>    - Multiply image-file.png's assumed scale factor by this factor\n");
-	fprintf(f,"  -srgb           - Assume an sRGB-colorspace-aware resize was performed\n");
-	fprintf(f,"  -r              - Swap the x and y dimensions, to test the vertical direction\n");
-	fprintf(f,"  -range[2]       - Shrink the graph, to increase the visible vertical range\n");
-	fprintf(f,"  -thick1         - Graph image-file.png using thicker lines\n");
-	fprintf(f,"  -thick          - Graph secondary-image-file.png using thicker lines\n");
-	fprintf(f,"  -nologo         - Don't include the program name in output-file.png\n");
-	fprintf(f,"  -name <name>    - Friendly name for image-file.png\n");
-	fprintf(f,"  -name2 <name>   - Friendly name for secondary-image-file.png\n");
+	printmsg(c, "ResampleScope v%s, ", RS_VERSION);
+	printmsg(c, "Copyright (C) 2011 Jason Summers\n");
+	printmsg(c, "Usage:\n");
+	printmsg(c, "  %s [-r] -gen\n", prg);
+	printmsg(c, "     Generate the source image files\n");
+	printmsg(c, "  %s [options] <image-file.png> [<secondary-image-file.png>] <output-file.png>\n",prg);
+	printmsg(c, "     Analyze a resized image file\n");
+	printmsg(c, " Options:\n");
+	printmsg(c, "  -pd             - Assume the \"dots pattern\" source image was used\n");
+	printmsg(c, "  -pl             - Assume the \"lines pattern\" source image was used\n");
+	printmsg(c, "  -sf <factor>    - Assume image-file.png's features were scaled by this factor\n");
+	printmsg(c, "  -ff <factor>    - Multiply image-file.png's assumed scale factor by this factor\n");
+	printmsg(c, "  -srgb           - Assume an sRGB-colorspace-aware resize was performed\n");
+	printmsg(c, "  -r              - Swap the x and y dimensions, to test the vertical direction\n");
+	printmsg(c, "  -range[2]       - Shrink the graph, to increase the visible vertical range\n");
+	printmsg(c, "  -thick1         - Graph image-file.png using thicker lines\n");
+	printmsg(c, "  -thick          - Graph secondary-image-file.png using thicker lines\n");
+	printmsg(c, "  -nologo         - Don't include the program name in output-file.png\n");
+	printmsg(c, "  -name <name>    - Friendly name for image-file.png\n");
+	printmsg(c, "  -name2 <name>   - Friendly name for secondary-image-file.png\n");
 }
 
-static void init_ctx(struct context *c)
+static void init_ctx_lowlevel(struct context *c)
 {
 	memset(c,0,sizeof(struct context));
+}
+
+static void init_ctx_highlevel(struct context *c)
+{
 	c->include_logo = 1;
 
 	c->inf[0].color_r = 0;
@@ -1051,9 +1061,8 @@ static void init_ctx(struct context *c)
 	c->srgb_250_as_lin1 = srgb_to_linear(250.0/255.0);
 }
 
-static int main2(int argc, char **argv)
+static int main2(struct context *c, int argc, char **argv)
 {
-	struct context c;
 	const char *param1 = NULL;
 	const char *param2 = NULL;
 	const char *param3 = NULL;
@@ -1067,7 +1076,7 @@ static int main2(int argc, char **argv)
 
 	prg = (argc>=1)?argv[0]:"rscope";
 
-	init_ctx(&c);
+	init_ctx_highlevel(c);
 
 	paramcount=0;
 
@@ -1086,48 +1095,48 @@ static int main2(int argc, char **argv)
 				pattern = PATTERN_LINEIMG;
 			}
 			else if(!strcmp(argv[i],"-r")) {
-				c.rotated = 1;
+				c->rotated = 1;
 			}
 			else if((i<argc-1) && !strcmp(argv[i],"-name")) {
-				c.inf[0].name = argv[i+1];
+				c->inf[0].name = argv[i+1];
 				i++;
 			}
 			else if((i<argc-1) && !strcmp(argv[i],"-name2")) {
-				c.inf[1].name = argv[i+1];
+				c->inf[1].name = argv[i+1];
 				i++;
 			}
 			else if((i<argc-1) && !strcmp(argv[i],"-sf")) {
-				c.inf[0].scale_factor_req = atof(argv[i+1]);
-				c.inf[0].scale_factor_req_set = 1;
+				c->inf[0].scale_factor_req = atof(argv[i+1]);
+				c->inf[0].scale_factor_req_set = 1;
 				i++;
 			}
 			else if((i<argc-1) && !strcmp(argv[i],"-ff")) {
-				c.inf[0].scale_fudge_factor_req = atof(argv[i+1]);
-				c.inf[0].scale_fudge_factor_req_set = 1;
+				c->inf[0].scale_fudge_factor_req = atof(argv[i+1]);
+				c->inf[0].scale_fudge_factor_req_set = 1;
 				i++;
 			}
 			else if(!strcmp(argv[i],"-srgb")) {
-				c.color_correction_method = CCMETHOD_SRGB;
+				c->color_correction_method = CCMETHOD_SRGB;
 			}
 			else if(!strcmp(argv[i],"-nologo")) {
-				c.include_logo=0;
+				c->include_logo=0;
 			}
 			else if(!strcmp(argv[i],"-range")) {
-				c.expandrange=1;
+				c->expandrange=1;
 			}
 			else if(!strcmp(argv[i],"-range2")) {
-				c.expandrange=2;
+				c->expandrange=2;
 			}
 			else if(!strcmp(argv[i],"-thick1")) {
-				c.inf[0].thicklines = 1;
+				c->inf[0].thicklines = 1;
 			}
 			else if(!strcmp(argv[i],"-thick")) {
-				c.inf[1].thicklines = 1;
+				c->inf[1].thicklines = 1;
 				// Use a lighter color for thick lines.
-				c.inf[1].color_r=255; c.inf[1].color_g=128; c.inf[1].color_b=128;
+				c->inf[1].color_r=255; c->inf[1].color_g=128; c->inf[1].color_b=128;
 			}
 			else {
-				fprintf(stderr,"Unknown option: %s\n",argv[i]);
+				printmsg(c, "Unknown option: %s\n", argv[i]);
 				return 1;
 			}
 		}
@@ -1153,60 +1162,60 @@ static int main2(int argc, char **argv)
 	// correct file open. (Yes, this is ugly.)
 	if(op==0 && (paramcount==2 || paramcount==3)) {
 		op = OP_ANALYZE;
-		pattern = detect_image_type(&c,(paramcount==2)?param1:param2);
+		pattern = detect_image_type(c,(paramcount==2)?param1:param2);
 
 		if(pattern!=PATTERN_DOTIMG && pattern!=PATTERN_LINEIMG) {
-			close_file_for_reading(&c);
+			close_file_for_reading(c);
 			return 1;
 		}
 	}
 
 	if(op==OP_GEN) {
-		gen_source_images(&c);
+		gen_source_images(c);
 		return 0;
 	}
 	else if(op==OP_ANALYZE && pattern==PATTERN_DOTIMG) {
 		if(paramcount==2) {
 			// DOTIMG, 1 input file
-			c.inf[0].fn = param1;
-			c.inf[1].fn = NULL;
-			c.outfn = param2;
-			run_ds(&c);
+			c->inf[0].fn = param1;
+			c->inf[1].fn = NULL;
+			c->outfn = param2;
+			run_ds(c);
 		}
 		else if(paramcount==3) {
 			// DOTIMG, 2 input files
-			c.inf[0].fn = param1;
-			c.inf[1].fn = param2;
-			c.outfn = param3;
-			run_ds(&c);
+			c->inf[0].fn = param1;
+			c->inf[1].fn = param2;
+			c->outfn = param3;
+			run_ds(c);
 		}
 		else {
-			usage(prg);
+			usage(c, prg);
 			return 1;
 		}
 	}
 	else if(op==OP_ANALYZE && pattern==PATTERN_LINEIMG) {
 		if(paramcount==2) {
 			// LINEIMG, 1 input file
-			c.inf[0].fn = param1;
-			c.inf[1].fn = NULL;
-			c.outfn = param2;
-			run_us(&c);
+			c->inf[0].fn = param1;
+			c->inf[1].fn = NULL;
+			c->outfn = param2;
+			run_us(c);
 		}
 		else if(paramcount==3) {
 			// LINEIMG, 2 input files
-			c.inf[0].fn = param1;
-			c.inf[1].fn = param2;
-			c.outfn = param3;
-			run_us(&c);
+			c->inf[0].fn = param1;
+			c->inf[1].fn = param2;
+			c->outfn = param3;
+			run_us(c);
 		}
 		else {
-			usage(prg);
+			usage(c, prg);
 			return 1;
 		}
 	}
 	else {
-		usage(prg);
+		usage(c, prg);
 		return 1;
 	}
 
@@ -1243,9 +1252,11 @@ int wmain(int argc, wchar_t **argvW)
 {
 	int ret;
 	char **argv;
+	struct context c;
 
+	init_ctx_lowlevel(&c);
 	argv = convert_args_to_utf8(argc, argvW);
-	ret = main2(argc, argv);
+	ret = main2(&c, argc, argv);
 	free_utf8_args(argc, argv);
 	return ret;
 }
@@ -1254,7 +1265,12 @@ int wmain(int argc, wchar_t **argvW)
 
 int main(int argc, char **argv)
 {
-	return main2(argc, argv);
+	int ret;
+	struct context c;
+
+	init_ctx_lowlevel(&c);
+	ret = main2(&c, argc, argv);
+	return ret;
 }
 
 #endif

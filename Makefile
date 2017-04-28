@@ -15,7 +15,7 @@ all: $(RSCOPE)
 
 .PHONY: all clean
 
-CFLAGS:=-g -O2 -Wall -Wextra -Wformat-security -Wmissing-prototypes
+CFLAGS:=-g -O2 -Wall -Wextra -Wformat-security -Wmissing-prototypes -Wno-unused-parameter
 LDFLAGS:=-Wall
 LIBS:=-lgd -lm
 CC:=gcc
