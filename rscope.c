@@ -1,5 +1,5 @@
 // ResampleScope
-// Copyright (C) 2011 Jason Summers
+// Copyright (C) 2011-2017 Jason Summers
 
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -14,7 +14,31 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+#ifdef _WIN32
+#define RS_WINDOWS
+#endif
+
+#ifdef RS_WINDOWS
+
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0501
+#endif
+
+#ifndef _UNICODE
+#define _UNICODE
+#endif
+
+#define BGDWIN32 1 // For gd
+#define NONDLL 1 // For gd
+
+#endif
+
+#ifdef RS_WINDOWS
+#include <windows.h>
+#endif
+
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -22,8 +46,11 @@
 #include <gd.h>
 #include <gdfonts.h>
 
-#ifdef _WIN32
-#define snprintf _snprintf
+
+#ifdef RS_WINDOWS
+#define my_snprintf my_snprintf_win
+#else
+#define my_snprintf snprintf
 #endif
 
 #define RS_VERSION   "1.1"
@@ -128,6 +155,36 @@ struct context {
 	double lastpos_x_dbl, lastpos_y_dbl;
 };
 
+#ifdef RS_WINDOWS
+
+static void my_vsnprintf_win(char *buf, size_t buflen, const char *fmt, va_list ap)
+{
+	_vsnprintf_s(buf, buflen, _TRUNCATE, fmt, ap);
+}
+static void my_snprintf_win(char *buf, size_t buflen, const char *fmt, ...)
+{
+	va_list ap;
+	va_start(ap, fmt);
+	my_vsnprintf_win(buf, buflen, fmt, ap);
+	va_end(ap);
+}
+
+#endif
+
+static FILE *my_fopen(const char *file, const char *mode)
+{
+	// TODO: Special processing for Windows
+	return fopen(file, mode);
+}
+
+static void my_gdImageString(gdImagePtr im, gdFontPtr f, int x, int y,
+	unsigned char *s, int color)
+{
+	// TODO: Character set translation
+	gdImageString(im, f, x, y, s, color);
+}
+
+
 static void gr_init(struct context *c)
 {
 	c->gr_width = 600;
@@ -156,7 +213,7 @@ static void gr_init(struct context *c)
 static void gr_done(struct context *c)
 {
 	FILE *w;
-	w = fopen(c->outfn,"wb");
+	w = my_fopen(c->outfn,"wb");
 	if(!w) return;
 
 	gdImagePng(c->im_out,w);
@@ -214,10 +271,10 @@ static void gr_draw_grid(struct context *c)
 	// Draw labels
 	clr = gdImageColorResolve(c->im_out,0,128,0);
 	for(i= 0; i<=1; i++) {
-		sprintf(tbuf,"%d",i);
-		gdImageString(c->im_out,gdFontSmall,xcoord(c,i)-6,c->gr_height-14,
+		my_snprintf(tbuf, sizeof(tbuf), "%d", i);
+		my_gdImageString(c->im_out,gdFontSmall,xcoord(c,i)-6,c->gr_height-14,
 			(unsigned char*)tbuf,clr);
-		gdImageString(c->im_out,gdFontSmall,3,ycoord(c,i)-12,
+		my_gdImageString(c->im_out,gdFontSmall,3,ycoord(c,i)-12,
 			(unsigned char*)tbuf,clr);
 	}
 
@@ -248,15 +305,15 @@ static void gr_get_name_from_fn(const char *fn, char *buf, size_t buflen)
 {
 	char *r;
 	r = strrchr(fn,'/');
-#ifdef _WIN32
+#ifdef RS_WINDOWS
 	if(!r) r = strrchr(fn,'\\');
 #endif
 
 	if(r)
-		strncpy(buf,r+1,buflen-1);
+		my_snprintf(buf, buflen, "%s", r+1);
 	else
-		strncpy(buf,fn,buflen-1);
-	buf[buflen-1]='\0';
+		my_snprintf(buf, buflen, "%s", fn);
+
 	r = strrchr(buf,'.');
 	if(r) {
 		*r = '\0';
@@ -272,8 +329,7 @@ static void gr_draw_graph_name(struct context *c, struct infile_info *inf, int s
 	ypos = c->gr_height-19-14*c->graph_count;
 
 	if(inf->name) {
-		strncpy(buf,inf->name,100);
-		buf[sizeof(buf)-1]='\0';
+		my_snprintf(buf, sizeof(buf), "%s", inf->name);
 	}
 	else {
 		gr_get_name_from_fn(inf->fn,buf,100);
@@ -282,17 +338,17 @@ static void gr_draw_graph_name(struct context *c, struct infile_info *inf, int s
 	gdImageLine(c->im_out,5,ypos+7,13,ypos+7,c->curr_color);
 	gdImageSetThickness(c->im_out,1);
 
-	snprintf(s,sizeof(s),"%s",buf);
+	my_snprintf(s, sizeof(s), "%s", buf);
 	if(sf_flag) {
 		double ff;
 		ff = c->scale_factor / c->natural_scale_factor;
 		if(ff<0.99999999 || ff>1.00000001) {
-			snprintf(s,sizeof(s),"%s (factor=%.8f)",buf,ff);
+			my_snprintf(s, sizeof(s), "%s (factor=%.8f)", buf, ff);
 		}
 	}
 
 	s[sizeof(s)-1]='\0';
-	gdImageString(c->im_out,gdFontSmall,17,ypos,(unsigned char*)s,c->curr_color);
+	my_gdImageString(c->im_out,gdFontSmall,17,ypos,(unsigned char*)s,c->curr_color);
 }
 
 static void gr_draw_logo(struct context *c)
@@ -302,7 +358,7 @@ static void gr_draw_logo(struct context *c)
 	gdImageFilledRectangle(c->im_out,c->gr_width-81,c->gr_height-15,
 	 c->gr_width-1,c->gr_height-1,c->border_color);
 
-	gdImageString(c->im_out,gdFontSmall,c->gr_width-79,c->gr_height-15,
+	my_gdImageString(c->im_out,gdFontSmall,c->gr_width-79,c->gr_height-15,
 		(unsigned char*)"ResampleScope",
 		gdImageColorResolve(c->im_out,255,255,255));
 }
@@ -386,7 +442,7 @@ static int open_file_for_reading(struct context *c, const char *fn)
 	// The file may have already been opened, to detect the image type.
 	// If not, open it now.
 	if(!c->im_in_fp) {
-		c->im_in_fp=fopen(fn,"rb");
+		c->im_in_fp = my_fopen(fn,"rb");
 		if(!c->im_in_fp) {
 			fprintf(stderr,"* Error: Failed to read %s\n",fn);
 			return 0;
@@ -700,7 +756,7 @@ static int gen_dotimg_image(struct context *c)
 
 	fn = c->rotated ? "pdr.png" : "pd.png";
 
-	w=fopen(fn,"wb");
+	w = my_fopen(fn,"wb");
 	if(!w) {
 		fprintf(stderr,"Can't write %s\n",fn);
 		goto done;
@@ -758,7 +814,7 @@ static int gen_lineimg_image(struct context *c)
 
 	fn = c->rotated ? "plr.png" : "pl.png";
 
-	w=fopen(fn,"wb");
+	w = my_fopen(fn,"wb");
 	if(!w) {
 		fprintf(stderr,"Can't write %s\n",fn);
 		goto done;
@@ -809,7 +865,7 @@ static void gen_html(struct context *c)
 
 	fn = c->rotated ? "rscoper.html" : "rscope.html";
 
-	w=fopen(fn,"w");
+	w = my_fopen(fn,"w");
 	if(!w) return;
 
 	fprintf(w,"<html>\n");
@@ -926,7 +982,7 @@ static void init_ctx(struct context *c)
 	c->srgb_250_as_lin1 = srgb_to_linear(250.0/255.0);
 }
 
-int main(int argc, char**argv)
+static int main2(int argc, char **argv)
 {
 	struct context c;
 	const char *param1 = NULL;
@@ -1003,7 +1059,7 @@ int main(int argc, char**argv)
 			}
 			else {
 				fprintf(stderr,"Unknown option: %s\n",argv[i]);
-				exit(1);
+				return 1;
 			}
 		}
 		else {
@@ -1032,7 +1088,7 @@ int main(int argc, char**argv)
 
 		if(pattern!=PATTERN_DOTIMG && pattern!=PATTERN_LINEIMG) {
 			close_file_for_reading(&c);
-			exit(1);
+			return 1;
 		}
 	}
 
@@ -1057,7 +1113,7 @@ int main(int argc, char**argv)
 		}
 		else {
 			usage(prg);
-			exit(1);
+			return 1;
 		}
 	}
 	else if(op==OP_ANALYZE && pattern==PATTERN_LINEIMG) {
@@ -1077,13 +1133,81 @@ int main(int argc, char**argv)
 		}
 		else {
 			usage(prg);
-			exit(1);
+			return 1;
 		}
 	}
 	else {
 		usage(prg);
-		exit(1);
+		return 1;
 	}
 
 	return 0;
 }
+
+#ifdef RS_WINDOWS
+
+static char *utf16_to_utf8_strdup(const wchar_t *src)
+{
+	char *dst;
+	int dstlen;
+	int ret;
+
+	// Calculate the size required by the target string.
+	ret = WideCharToMultiByte(CP_UTF8, 0, src, -1, NULL, 0, NULL, NULL);
+	if(ret<1) return NULL;
+
+	dstlen = ret;
+	dst = malloc(dstlen);
+
+	ret = WideCharToMultiByte(CP_UTF8, 0, src, -1, dst, dstlen, NULL, NULL);
+	if(ret<1) {
+		free(dst);
+		return NULL;
+	}
+	return dst;
+}
+
+static char **convert_args_to_utf8(int argc, wchar_t **argvW)
+{
+	int i;
+	char **argvUTF8;
+
+	argvUTF8 = (char**)malloc(argc*sizeof(char*));
+
+	// Convert parameters to UTF-8
+	for(i=0;i<argc;i++) {
+		argvUTF8[i] = utf16_to_utf8_strdup(argvW[i]);
+	}
+
+	return argvUTF8;
+}
+
+static void free_utf8_args(int argc, char **argv)
+{
+	int i;
+
+	for(i=0;i<argc;i++) {
+		free(argv[i]);
+	}
+	free(argv);
+}
+
+int wmain(int argc, wchar_t **argvW)
+{
+	int ret;
+	char **argv;
+
+	argv = convert_args_to_utf8(argc, argvW);
+	ret = main2(argc, argv);
+	free_utf8_args(argc, argv);
+	return ret;
+}
+
+#else
+
+int main(int argc, char **argv)
+{
+	return main2(argc, argv);
+}
+
+#endif
