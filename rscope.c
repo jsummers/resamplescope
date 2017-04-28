@@ -28,9 +28,6 @@
 #define _UNICODE
 #endif
 
-#define BGDWIN32 1 // For gd
-#define NONDLL 1 // For gd
-
 #endif
 
 #ifdef RS_WINDOWS
@@ -43,6 +40,10 @@
 #include <string.h>
 #include <math.h>
 
+#ifdef RS_WINDOWS
+#define BGDWIN32 1 // For gd
+#define NONDLL 1 // For gd
+#endif
 #include <gd.h>
 #include <gdfonts.h>
 
@@ -157,6 +158,50 @@ struct context {
 
 #ifdef RS_WINDOWS
 
+static wchar_t *de_utf8_to_utf16_strdup(const char *src)
+{
+	WCHAR *dst;
+	int dstlen;
+	int ret;
+
+	// Calculate the size required by the target string.
+	ret = MultiByteToWideChar(CP_UTF8, 0, src, -1, NULL, 0);
+	if(ret<1) {
+		return NULL;
+	}
+
+	dstlen = ret;
+	dst = malloc(dstlen*sizeof(WCHAR));
+
+	ret = MultiByteToWideChar(CP_UTF8, 0, src, -1, dst, dstlen);
+	if(ret<1) {
+		free(dst);
+		return NULL;
+	}
+	return dst;
+}
+
+static char *utf16_to_utf8_strdup(const wchar_t *src)
+{
+	char *dst;
+	int dstlen;
+	int ret;
+
+	// Calculate the size required by the target string.
+	ret = WideCharToMultiByte(CP_UTF8, 0, src, -1, NULL, 0, NULL, NULL);
+	if(ret<1) return NULL;
+
+	dstlen = ret;
+	dst = malloc(dstlen);
+
+	ret = WideCharToMultiByte(CP_UTF8, 0, src, -1, dst, dstlen, NULL, NULL);
+	if(ret<1) {
+		free(dst);
+		return NULL;
+	}
+	return dst;
+}
+
 static void my_vsnprintf_win(char *buf, size_t buflen, const char *fmt, va_list ap)
 {
 	_vsnprintf_s(buf, buflen, _TRUNCATE, fmt, ap);
@@ -169,12 +214,36 @@ static void my_snprintf_win(char *buf, size_t buflen, const char *fmt, ...)
 	va_end(ap);
 }
 
+static FILE* my_fopen_win(const char *fn, const char *mode)
+{
+	FILE *f = NULL;
+	errno_t errcode;
+	WCHAR *fnW;
+	WCHAR *modeW;
+
+	fnW = de_utf8_to_utf16_strdup(fn);
+	modeW = de_utf8_to_utf16_strdup(mode);
+
+	errcode = _wfopen_s(&f, fnW, modeW);
+
+	free(fnW);
+	free(modeW);
+
+	if(errcode!=0) {
+		f=NULL;
+	}
+	return f;
+}
+
 #endif
 
 static FILE *my_fopen(const char *file, const char *mode)
 {
-	// TODO: Special processing for Windows
+#ifdef RS_WINDOWS
+	return my_fopen_win(file, mode);
+#else
 	return fopen(file, mode);
+#endif
 }
 
 static void my_gdImageString(gdImagePtr im, gdFontPtr f, int x, int y,
@@ -1146,35 +1215,13 @@ static int main2(int argc, char **argv)
 
 #ifdef RS_WINDOWS
 
-static char *utf16_to_utf8_strdup(const wchar_t *src)
-{
-	char *dst;
-	int dstlen;
-	int ret;
-
-	// Calculate the size required by the target string.
-	ret = WideCharToMultiByte(CP_UTF8, 0, src, -1, NULL, 0, NULL, NULL);
-	if(ret<1) return NULL;
-
-	dstlen = ret;
-	dst = malloc(dstlen);
-
-	ret = WideCharToMultiByte(CP_UTF8, 0, src, -1, dst, dstlen, NULL, NULL);
-	if(ret<1) {
-		free(dst);
-		return NULL;
-	}
-	return dst;
-}
-
 static char **convert_args_to_utf8(int argc, wchar_t **argvW)
 {
 	int i;
 	char **argvUTF8;
 
-	argvUTF8 = (char**)malloc(argc*sizeof(char*));
+	argvUTF8 = malloc(argc*sizeof(char*));
 
-	// Convert parameters to UTF-8
 	for(i=0;i<argc;i++) {
 		argvUTF8[i] = utf16_to_utf8_strdup(argvW[i]);
 	}
