@@ -120,7 +120,7 @@ struct context {
 
 	// Temporary space for the samples being analyzed.
 	// (Currently only used when with lineimg.)
-	int *samples;
+	double *samples;
 
 	// Used by the line drawing function
 	int lastpos_set;
@@ -330,18 +330,19 @@ static double srgb_to_linear(double v_srgb)
 	}
 }
 
-// TODO: Return a floating point value.
-static int rs_gdImageGetPixel(struct context *c, gdImagePtr im, int x, int y)
+// Returns a value typically in the range 0..255,
+// where 50 and 250 are our special "dark" and "light" colors.
+static double rs_gdImageGetPixel(struct context *c, gdImagePtr im, int x, int y)
 {
 	int colorref;
-	int val;
+	double val;
 
 	if(c->rotated)
 		colorref = gdImageGetPixel(im,y,x);
 	else
 		colorref = gdImageGetPixel(im,x,y);
 
-	val = gdImageGreen(im, colorref);
+	val = (double)gdImageGreen(im, colorref);
 
 	if(c->color_correction_method==CCMETHOD_SRGB) {
 		double v1;
@@ -360,8 +361,8 @@ static int rs_gdImageGetPixel(struct context *c, gdImagePtr im, int x, int y)
 		// That's not what we want. We want 50 and 250.
 		// So, we have to be careful to scale and translate it to the correct
 		// range.
-		val = (int)(0.5+ (v1-c->srgb50_as_lin1) *
-			((250.0-50.0)/(c->srgb_250_as_lin1-c->srgb50_as_lin1)) + 50.0);
+		val = (v1-c->srgb50_as_lin1) *
+			((250.0-50.0)/(c->srgb_250_as_lin1-c->srgb50_as_lin1)) + 50.0;
 	}
 
 	return val;
@@ -416,9 +417,9 @@ static void close_file_for_reading(struct context *c)
 //    the next DOTIMG_STRIPHEIGHT are strip 1, etc.
 static int plot_strip(struct context *c, struct infile_info *inf, int stripnum)
 {
-	int v;
+	double v;
 	int dstpos,k;
-	int tot;
+	double tot;
 	double value;
 	int xc,yc;
 	double zp;
@@ -459,11 +460,11 @@ static int plot_strip(struct context *c, struct infile_info *inf, int stripnum)
 		tot = 0;
 		for(k=0;k<DOTIMG_STRIPHEIGHT;k++) {
 			v = rs_gdImageGetPixel(c,c->im_in,dstpos,DOTIMG_STRIPHEIGHT*stripnum+k);
-			tot += (v-50);
+			tot += (v-50.0);
 		}
 
 		// Convert (0 to 200) to (0 to 1).
-		value = ((double)tot)/(200.0);
+		value = tot/200.0;
 
 		if(c->scale_factor < 1.0) {
 			// Compensate for the fact that we're shrinking the image, which
@@ -579,7 +580,7 @@ static int run_ds(struct context *c)
 static void gr_lineimg_graph_main(struct context *c, struct infile_info *inf)
 {
 	int i;
-	int v;
+	double v;
 	int clr;
 	double xp, yp;
 	double tot = 0.0;
@@ -592,7 +593,7 @@ static void gr_lineimg_graph_main(struct context *c, struct infile_info *inf)
 
 	for(i=0;i<c->w;i++) {
 		v = c->samples[i];
-		yp = (((double)v)-50.0)/200.0;
+		yp = (v-50.0)/200.0;
 		tot += yp;
 		xp = 0.5+(double)i-(((double)c->w)/2.0);
 
@@ -640,7 +641,7 @@ static int run_lineimg_1file(struct context *c, struct infile_info *inf)
 	scanline = c->h / 2;
 
 	// Copy the samples we're analyzing
-	c->samples = (int*)malloc(sizeof(int)*c->w);
+	c->samples = malloc(sizeof(double)*c->w);
 	for(i=0;i<c->w;i++) {
 		// Read from three different scanlines, to give us a chance of
 		// detecting weird issues where the scanlines aren't identical.
@@ -876,7 +877,7 @@ static int detect_image_type(struct context *c, const char *fn)
 	// Look at the top row. If it contains any bright pixels, assume PATTERN_LINEIMG.
 	// Otherwise, assume PATTERN_DOTIMG
 	for(i=0;i<w;i++) {
-		if(rs_gdImageGetPixel(c,c->im_in,i,0)>=100) return PATTERN_LINEIMG;
+		if(rs_gdImageGetPixel(c,c->im_in,i,0)>=99.9) return PATTERN_LINEIMG;
 	}
 
 	return PATTERN_DOTIMG;
