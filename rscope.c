@@ -282,11 +282,96 @@ static FILE *my_fopen(const char *file, const char *mode)
 #endif
 }
 
-static void my_gdImageString(gdImagePtr im, gdFontPtr f, int x, int y,
-	unsigned char *s, int color)
+static unsigned char unicode_to_latin2_char(unsigned int uchar)
 {
-	// TODO: Character set translation
-	gdImageString(im, f, x, y, s, color);
+	size_t i;
+	static const unsigned short latin2table[96] = {
+		0x00A0,0x0104,0x02D8,0x0141,0x00A4,0x013D,0x015A,0x00A7, // 160-167
+		0x00A8,0x0160,0x015E,0x0164,0x0179,0x00AD,0x017D,0x017B, // 168-176
+		0x00B0,0x0105,0x02DB,0x0142,0x00B4,0x013E,0x015B,0x02C7, // ...
+		0x00B8,0x0161,0x015F,0x0165,0x017A,0x02DD,0x017E,0x017C,
+		0x0154,0x00C1,0x00C2,0x0102,0x00C4,0x0139,0x0106,0x00C7,
+		0x010C,0x00C9,0x0118,0x00CB,0x011A,0x00CD,0x00CE,0x010E,
+		0x0110,0x0143,0x0147,0x00D3,0x00D4,0x0150,0x00D6,0x00D7,
+		0x0158,0x016E,0x00DA,0x0170,0x00DC,0x00DD,0x0162,0x00DF,
+		0x0155,0x00E1,0x00E2,0x0103,0x00E4,0x013A,0x0107,0x00E7,
+		0x010D,0x00E9,0x0119,0x00EB,0x011B,0x00ED,0x00EE,0x010F,
+		0x0111,0x0144,0x0148,0x00F3,0x00F4,0x0151,0x00F6,0x00F7,
+		0x0159,0x016F,0x00FA,0x0171,0x00FC,0x00FD,0x0163,0x02D9  // 248-255
+	};
+
+	for(i=0; i<96; i++) {
+		if((unsigned int)latin2table[i]==uchar) {
+			return (unsigned char)(160+i);
+		}
+	}
+	return '?';
+}
+
+static void utf8_to_latin2_string(unsigned char *src, unsigned char *dst, size_t dstlen)
+{
+	size_t srcpos, dstpos;
+	unsigned char ch;
+	unsigned int pending_char;
+	int bytes_expected;
+
+	srcpos = 0;
+	dstpos = 0;
+	pending_char = 0;
+	bytes_expected = 0;
+
+	while(1) {
+		if(dstpos >= dstlen-1) {
+			dst[dstlen-1] = '\0';
+			break;
+		}
+
+		ch = src[srcpos++];
+
+		if(ch<128) { // Only byte of a 1-byte sequence
+			dst[dstpos++] = ch;
+			if(ch=='\0') break;
+		}
+		else if(ch<0xc0) { // Continuation byte
+			if(bytes_expected>0) {
+				pending_char = (pending_char<<6)|(ch&0x3f);
+				bytes_expected--;
+				if(bytes_expected<1) {
+					dst[dstpos++] = unicode_to_latin2_char(pending_char);
+				}
+			}
+		}
+		else if(ch<0xe0) { // 1st byte of a 2-byte sequence
+			pending_char = ch&0x1f;
+			bytes_expected=1;
+		}
+		else if(ch<0xf0) { // 1st byte of a 3-byte sequence
+			pending_char = ch&0x0f;
+			bytes_expected=2;
+		}
+		else if(ch<0xf8) { // 1st byte of a 4-byte sequence
+			pending_char = ch&0x07;
+			bytes_expected=3;
+		}
+	}
+}
+
+static void my_gdImageString(gdImagePtr im, gdFontPtr f, int x, int y,
+	unsigned char *src_utf8, int color)
+{
+	unsigned char *src_latin2;
+	size_t src_latin2_len;
+
+	src_latin2_len = strlen((const char*)src_utf8) + 1;
+	src_latin2 = malloc(src_latin2_len);
+
+	// The 'gdFontSmall' font we're using has Latin-2 encoding.
+	// That's not very useful if you're not Eastern European.
+	// TODO: The fix would presumably be to use gd's FreeType features.
+	utf8_to_latin2_string(src_utf8, src_latin2, src_latin2_len);
+
+	gdImageString(im, f, x, y, src_latin2, color);
+	free(src_latin2);
 }
 
 static void gr_init(struct context *c)
