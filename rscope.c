@@ -32,6 +32,8 @@
 
 #ifdef RS_WINDOWS
 #include <windows.h>
+#include <io.h> // For _setmode
+#include <fcntl.h>
 #endif
 
 #include <stdio.h>
@@ -206,6 +208,7 @@ static void my_vsnprintf_win(char *buf, size_t buflen, const char *fmt, va_list 
 {
 	_vsnprintf_s(buf, buflen, _TRUNCATE, fmt, ap);
 }
+
 static void my_snprintf_win(char *buf, size_t buflen, const char *fmt, ...)
 {
 	va_list ap;
@@ -237,6 +240,29 @@ static FILE* my_fopen_win(const char *fn, const char *mode)
 
 #endif
 
+#ifdef RS_WINDOWS
+
+static void printmsg(struct context *c, const char *fmt, ...)
+{
+	va_list ap;
+	char buf[500];
+	WCHAR bufW[1000];
+
+	va_start(ap, fmt);
+	_vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, ap);
+	//vfprintf(stderr, fmt, ap);
+	va_end(ap);
+
+	// Convert from UTF-8 to UTF-16
+	MultiByteToWideChar(CP_UTF8, 0,
+		buf, -1,
+		bufW, sizeof(bufW)/sizeof(WCHAR));
+
+	fputws(bufW, stderr);
+}
+
+#else
+
 static void printmsg(struct context *c, const char *fmt, ...)
 {
 	va_list ap;
@@ -244,6 +270,8 @@ static void printmsg(struct context *c, const char *fmt, ...)
 	vfprintf(stderr, fmt, ap);
 	va_end(ap);
 }
+
+#endif
 
 static FILE *my_fopen(const char *file, const char *mode)
 {
@@ -1259,6 +1287,11 @@ int wmain(int argc, wchar_t **argvW)
 	struct context c;
 
 	init_ctx_lowlevel(&c);
+
+	// Tell the C library to properly support the Unicode API (e.g. fputws) for
+	// stderr output (and that if stderr is redirected, encode it in UTF-8).
+	_setmode(_fileno(stderr), _O_U8TEXT);
+
 	argv = convert_args_to_utf8(argc, argvW);
 	ret = main2(&c, argc, argv);
 	free_utf8_args(argc, argv);
