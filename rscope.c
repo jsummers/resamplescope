@@ -56,7 +56,7 @@
 #define my_snprintf snprintf
 #endif
 
-#define RS_VERSION   "1.1"
+#define RS_VERSION   "1.2"
 
 // Ideally, DOTIMG_SRC_WIDTH should be a prime number, 2 larger than an easily-typed number.
 #define DOTIMG_SRC_WIDTH    557
@@ -1136,7 +1136,7 @@ static int detect_image_type(struct context *c, const char *fn)
 static void usage(struct context *c, const char *prg)
 {
 	printmsg(c, "ResampleScope v%s, ", RS_VERSION);
-	printmsg(c, "Copyright (C) 2011 Jason Summers\n");
+	printmsg(c, "Copyright (C) 2011-2017 Jason Summers\n");
 	printmsg(c, "Usage:\n");
 	printmsg(c, "  %s [-r] -gen\n", prg);
 	printmsg(c, "     Generate the source image files\n");

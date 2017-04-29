@@ -1,6 +1,6 @@
 ResampleScope
-Version 1.1
-Copyright (C) 2011 Jason Summers
+Version 1.2
+Copyright (C) 2011-2017 Jason Summers
 
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
