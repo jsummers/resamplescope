@@ -1053,12 +1053,15 @@ static void gen_html(struct context *c)
 
 	fn = c->rotated ? "rscoper.html" : "rscope.html";
 
-	w = my_fopen(fn,"w");
+	w = my_fopen(fn,"wb");
 	if(!w) return;
 
+	fprintf(w,"<!DOCTYPE html>\n");
 	fprintf(w,"<html>\n");
 	fprintf(w,"<head>\n");
-	fprintf(w,"<title>ResampleScope browser test page</title>\n");
+	fprintf(w,"<meta charset=\"UTF-8\">\n");
+	fprintf(w,"<title>ResampleScope browser test page%s</title>\n",
+		c->rotated ? " (vertical)" : "");
 	fprintf(w,"<style>\n");
 	fprintf(w,"IMG { -ms-interpolation-mode:bicubic }\n");
 	fprintf(w,"TD.t { text-align:right }\n");
