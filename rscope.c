@@ -204,38 +204,12 @@ static char *utf16_to_utf8_strdup(const wchar_t *src)
 	return dst;
 }
 
-static void my_vsnprintf_win(char *buf, size_t buflen, const char *fmt, va_list ap)
-{
-	_vsnprintf_s(buf, buflen, _TRUNCATE, fmt, ap);
-}
-
 static void my_snprintf_win(char *buf, size_t buflen, const char *fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
-	my_vsnprintf_win(buf, buflen, fmt, ap);
+	_vsnprintf_s(buf, buflen, _TRUNCATE, fmt, ap);
 	va_end(ap);
-}
-
-static FILE* my_fopen_win(const char *fn, const char *mode)
-{
-	FILE *f = NULL;
-	errno_t errcode;
-	WCHAR *fnW;
-	WCHAR *modeW;
-
-	fnW = de_utf8_to_utf16_strdup(fn);
-	modeW = de_utf8_to_utf16_strdup(mode);
-
-	errcode = _wfopen_s(&f, fnW, modeW);
-
-	free(fnW);
-	free(modeW);
-
-	if(errcode!=0) {
-		f=NULL;
-	}
-	return f;
 }
 
 #endif
@@ -250,7 +224,6 @@ static void printmsg(struct context *c, const char *fmt, ...)
 
 	va_start(ap, fmt);
 	_vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, ap);
-	//vfprintf(stderr, fmt, ap);
 	va_end(ap);
 
 	// Convert from UTF-8 to UTF-16
@@ -273,14 +246,37 @@ static void printmsg(struct context *c, const char *fmt, ...)
 
 #endif
 
+#ifdef RS_WINDOWS
+
+static FILE* my_fopen(const char *fn, const char *mode)
+{
+	FILE *f = NULL;
+	errno_t errcode;
+	WCHAR *fnW;
+	WCHAR *modeW;
+
+	fnW = de_utf8_to_utf16_strdup(fn);
+	modeW = de_utf8_to_utf16_strdup(mode);
+
+	errcode = _wfopen_s(&f, fnW, modeW);
+
+	free(fnW);
+	free(modeW);
+
+	if(errcode!=0) {
+		f=NULL;
+	}
+	return f;
+}
+
+#else
+
 static FILE *my_fopen(const char *file, const char *mode)
 {
-#ifdef RS_WINDOWS
-	return my_fopen_win(file, mode);
-#else
 	return fopen(file, mode);
-#endif
 }
+
+#endif
 
 static unsigned char unicode_to_latin2_char(unsigned int uchar)
 {
