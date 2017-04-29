@@ -101,6 +101,9 @@ struct infile_info {
 	int scale_fudge_factor_req_set;
 	int thicklines;
 	int color_r, color_g, color_b;
+#define CCMETHOD_LINEAR 0
+#define CCMETHOD_SRGB   2
+	int color_correction_method;
 };
 
 struct context {
@@ -141,11 +144,6 @@ struct context {
 	int include_logo;
 	int expandrange;
 
-#define CCMETHOD_LINEAR 0
-#define CCMETHOD_SRGB   2
-	int color_correction_method;
-	double srgb50_as_lin1, srgb_250_as_lin1; // Cached calculated values
-
 	// Temporary space for the samples being analyzed.
 	// (Currently only used when with lineimg.)
 	double *samples;
@@ -154,6 +152,8 @@ struct context {
 	int lastpos_set;
 	int lastpos_x, lastpos_y;
 	double lastpos_x_dbl, lastpos_y_dbl;
+
+	double srgb50_as_lin1, srgb_250_as_lin1; // Cached calculated values
 };
 
 #ifdef RS_WINDOWS
@@ -464,7 +464,8 @@ static double srgb_to_linear(double v_srgb)
 
 // Returns a value typically in the range 0..255,
 // where 50 and 250 are our special "dark" and "light" colors.
-static double rs_gdImageGetPixel(struct context *c, gdImagePtr im, int x, int y)
+static double rs_gdImageGetPixel(struct context *c, struct infile_info *inf,
+	gdImagePtr im, int x, int y)
 {
 	int colorref;
 	double val;
@@ -476,7 +477,7 @@ static double rs_gdImageGetPixel(struct context *c, gdImagePtr im, int x, int y)
 
 	val = (double)gdImageGreen(im, colorref);
 
-	if(c->color_correction_method==CCMETHOD_SRGB) {
+	if(inf->color_correction_method==CCMETHOD_SRGB) {
 		double v1;
 		// We're assuming the app being tested behaved as follows:
 		// (1) converted the original colors from sRGB to linear;
@@ -591,7 +592,8 @@ static int plot_strip(struct context *c, struct infile_info *inf, int stripnum)
 		// undo that.
 		tot = 0;
 		for(k=0;k<DOTIMG_STRIPHEIGHT;k++) {
-			v = rs_gdImageGetPixel(c,c->im_in,dstpos,DOTIMG_STRIPHEIGHT*stripnum+k);
+			v = rs_gdImageGetPixel(c, inf, c->im_in,
+				dstpos, DOTIMG_STRIPHEIGHT*stripnum+k);
 			tot += (v-50.0);
 		}
 
@@ -777,7 +779,8 @@ static int run_lineimg_1file(struct context *c, struct infile_info *inf)
 	for(i=0;i<c->w;i++) {
 		// Read from three different scanlines, to give us a chance of
 		// detecting weird issues where the scanlines aren't identical.
-		c->samples[i] = rs_gdImageGetPixel(c,c->im_in,i, scanline+(i%3)-1);
+		c->samples[i] = rs_gdImageGetPixel(c, inf, c->im_in,
+			i, scanline+(i%3)-1);
 	}
 
 	gr_lineimg_graph_main(c,inf);
@@ -1009,7 +1012,8 @@ static int detect_image_type(struct context *c, const char *fn)
 	// Look at the top row. If it contains any bright pixels, assume PATTERN_LINEIMG.
 	// Otherwise, assume PATTERN_DOTIMG
 	for(i=0;i<w;i++) {
-		if(rs_gdImageGetPixel(c,c->im_in,i,0)>=99.9) return PATTERN_LINEIMG;
+		if(rs_gdImageGetPixel(c, &c->inf[0], c->im_in, i, 0)>=99.9)
+			return PATTERN_LINEIMG;
 	}
 
 	return PATTERN_DOTIMG;
@@ -1031,7 +1035,7 @@ static void usage(struct context *c, const char *prg)
 	printmsg(c, "  -pl             - Assume the \"lines pattern\" source image was used\n");
 	printmsg(c, "  -sf <factor>    - Assume image-file.png's features were scaled by this factor\n");
 	printmsg(c, "  -ff <factor>    - Multiply image-file.png's assumed scale factor by this factor\n");
-	printmsg(c, "  -srgb           - Assume an sRGB-colorspace-aware resize was performed\n");
+	printmsg(c, "  -srgb           - For image-file.png, assume an sRGB-colorspace-aware resize was performed\n");
 	printmsg(c, "  -r              - Swap the x and y dimensions, to test the vertical direction\n");
 	printmsg(c, "  -range[2]       - Shrink the graph, to increase the visible vertical range\n");
 	printmsg(c, "  -thick1         - Graph image-file.png using thicker lines\n");
@@ -1116,7 +1120,7 @@ static int main2(struct context *c, int argc, char **argv)
 				i++;
 			}
 			else if(!strcmp(argv[i],"-srgb")) {
-				c->color_correction_method = CCMETHOD_SRGB;
+				c->inf[0].color_correction_method = CCMETHOD_SRGB;
 			}
 			else if(!strcmp(argv[i],"-nologo")) {
 				c->include_logo=0;
